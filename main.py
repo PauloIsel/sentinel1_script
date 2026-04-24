@@ -197,13 +197,25 @@ if memory is None:
 BASE_PATH = Path(__file__).parent.resolve()
 
 # Define data directory path
-DATA_DIR = BASE_PATH / "data" / "products"
+DATA_DIR = BASE_PATH / "data"
+if not DATA_DIR.exists():
+	# create the directory if it doesn't exist
+	DATA_DIR.mkdir(parents=True)
+
+PRODUCT_DIR = DATA_DIR / "products"
+print (f"Checking for products in: {PRODUCT_DIR}")
+if not PRODUCT_DIR.exists():
+	# create the directory if it doesn't exist
+	PRODUCT_DIR.mkdir(parents=True)
+	print(f"Created products directory at: {PRODUCT_DIR}\nPlease add Sentinel-1 products (.SAFE or .zip) to this folder and rerun the program.")
+	sys.exit(1)
+
 
 # Get workflow XML path
 workflowXml = BASE_PATH / "workflow" / "ImageProcessingSentinel1.xml"
 
 # Discover products and determine before/after files based on acquisition time
-products = getProducts(DATA_DIR)
+products = getProducts(PRODUCT_DIR)
 
 if (products[0].date == products[1].date):
 	raise ValueError(
@@ -214,9 +226,17 @@ if (products[0].date == products[1].date):
 before_file = getProductFile(products[0].path)
 after_file = getProductFile(products[1].path)
 
-ROI_DIR = BASE_PATH / "data" / "region_of_interest"
-# Get water bodies shapefile
+ROI_DIR = DATA_DIR / "region_of_interest"
+if not ROI_DIR.exists():
+	ROI_DIR.mkdir(parents=True)
+	print(f"Created region_of_interest directory at: {ROI_DIR}\nPlease add a shapefile (.shp) to this folder and rerun the program.")
+	sys.exit(1)
+
+# Get the study region shapefile
 regionOfInterest = getShapeFile(ROI_DIR)
+
+if regionOfInterest.suffix.lower() != ".shp":
+	raise ValueError(f"Expected a .shp file, got: {regionOfInterest}")
 
 # Prepare output path with auto-incrementing filename
 out_dir = BASE_PATH / "out"
@@ -227,10 +247,6 @@ programVars = [gpt, workflowXml, before_file, after_file, regionOfInterest]
 for required in programVars:
 	if not required.exists():
 		raise FileNotFoundError(f"Required file not found: {required}")
-
-
-if regionOfInterest.suffix.lower() != ".shp":
-	raise ValueError(f"Expected a .shp file, got: {regionOfInterest}")
 
 
 cmd = [
