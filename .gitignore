@@ -1,3 +1,35 @@
+# Data files (large and user-specific)
 *.zip
 *.shp
+data/
+cache/
+
+# Environment and Local Configuration
 .env
+.env.local
+*.env
+
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Output files
+out/
+*.dim
+*.data/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -1,41 +1,82 @@
-# Setup
+# Setup Guide
 
-## 1) Create and activate a virtual environment
+This guide helps you set up the Sentinel-1 flood detection script on your machine.
 
-### Create a virtual enviroment:
+## Prerequisites
+
+- **Python 3.8+**
+- **SNAP (ESA Sentinel Application Platform)** - Download from [step.esa.int](https://step.esa.int/main/download/snap-download/)
+
+## Automatic Setup (Recommended)
+
+### Windows (PowerShell)
+```powershell
+cd path\to\sentinel1_script
+.\setup.ps1
 ```
+
+### Linux/macOS (Bash)
+```bash
+cd path/to/sentinel1_script
+chmod +x setup.sh
+./setup.sh
+```
+
+## Manual Setup
+
+### Step 1: Create and activate a virtual environment
+
+```powershell
+# Windows - PowerShell
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-### Activate:
-```
-Powershell: .\.ven\Scripts\activate
-Linux: source .venv/bin/activate
+```bash
+# Linux/macOS
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-## 2) Install Python dependencies
+### Step 2: Install Python dependencies
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
-## 3) Configure local environment variables
+### Step 3: Configure environment variables
 
-Copy .env.example to .env and adjust paths for your machine.
+Copy `.env.example` to `.env` and update the paths for your machine:
 
-Required values:
-- SNAP_HOME: path to SNAP installation root 
+```bash
+cp .env.example .env  # Linux/macOS
+copy .env.example .env  # Windows
+```
 
-	(example: C:\Program Files\esa-snap)
+Edit `.env` and set:
+- **SNAP_DIRECTORY**: Path to your SNAP installation directory
+  - Windows: `C:\Program Files\esa-snap`
+  - Linux/macOS: `/opt/snap` or similar
 
-- SNAP_MEMORY: Java heap passed to gpt 
+### Step 4: Prepare input data
 
-	(example: 4G)
+Place your data in the `data/` directory:
+- **Sentinel-1 products** (.SAFE directories or .zip files): `data/products/`
+- **Region of Interest shapefile** (.shp file): `data/region_of_interest/`
 
-## 4) Run
+### Step 5: Run the script
 
+```bash
 python main.py
+```
 
-## Notes
+## Troubleshooting
 
-- SNAP must be installed in your machine.
+### "SNAP_DIRECTORY environment variable is not set" error
+Ensure you've created `.env` from `.env.example` and set the `SNAP_DIRECTORY` path correctly.
+
+### "No products found in data/" error
+Add at least two Sentinel-1 products (.SAFE or .zip) to `data/products/` directory.
+
+### "No .shp file found" error
+Add a region of interest shapefile (.shp) to `data/region_of_interest/` directory.

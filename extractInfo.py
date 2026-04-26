@@ -1,24 +1,27 @@
-from dataclasses import dataclass
-from dotenv import load_dotenv
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-import subprocess
-import sys
+import os, shutil
+import glob
+import json 
 import re
-import os
-
-# Suppress stack traces for cleaner error messages
-sys.tracebacklimit = 0
-
-# Load environment variables from .env file
-load_dotenv()
-
 
 # Define a simple data class to hold product information
 @dataclass 
 class Product:
+	name: str
 	path: Path
 	date: datetime
+
+	def to_json(self) -> str:
+		
+		return json.dumps(asdict(self), indent=4, default=str)
+
+	@staticmethod
+	def list_to_json(products: list['Product']) -> str:
+		import json
+		from dataclasses import asdict
+		return json.dumps([asdict(p) for p in products], indent=4, default=str)
 
 
 # Function to locate the SNAP GPT executable
@@ -78,7 +81,6 @@ def getProducts(data: Path) -> list[Product]:
 		else:
 			print(
 				f"Invalid product found in data/: {candidate.name}.\n"
-				"Expected .SAFE directory or .zip file."
 			)
 
 
@@ -129,7 +131,7 @@ def getProducts(data: Path) -> list[Product]:
 	for candidate in selected_candidates:
 		acquisition_date = getDate(candidate)
 
-		products.append(Product(path=candidate, date=acquisition_date))
+		products.append(Product(name=candidate.name, path=candidate, date=acquisition_date))
 
 	products.sort(key=lambda p: p.date)
 	return products
@@ -176,94 +178,46 @@ def getShapeFile(data: Path) -> Path:
 	return shape_files[0]
 
 
-def build_numbered_output_file(out_dir: Path, base_name: str, suffix: str) -> Path:
-	index = 1
-	while True:
-		candidate = out_dir / f"{base_name}_{index:03d}{suffix}"
-		if not candidate.exists():
-			return candidate
-		index += 1
+def build_output_file(out_dir: Path, base_name: str) -> Path:
+	path = out_dir / base_name
+	filesInDir = glob.glob(str(f"{path}*.*"))
 
+	if not filesInDir:
+		print(f"Using unique name: {path}")
+		return path
+	
+	if "cache" in str(out_dir):
+		print(f"creating cache file {path}...")
 
-gpt = getExecutable()
+		# check if there are any files with the same base name and remove them
+		if filesInDir:
+			print(f"Warning: {path} already exists. Removing existing file to avoid conflicts.")
+			(shutil.rmtree(Path(p)) if Path(p).is_dir() else Path(p).unlink() for p in filesInDir)
 
-memory = os.getenv("SNAP_MEMORY")
+		return path
 
-if memory is None:
-	memory = "4G" # Default value if not set in .env
+	pattern = re.compile(rf"^{re.escape(base_name)}_(\d{{1,3}})(?:\.[^.]+)?$")
+	
+	max_idx = 0
+	matched_any = False
+	existing_names = set(Path(f).stem for f in filesInDir)
+	print(existing_names)
+	
+	for name in existing_names:
+		if name == base_name:
+			matched_any = True
+			continue
+			
+		match = pattern.search(name)
+		if match:
+			matched_any = True
+			max_idx = max(max_idx, int(match.group(1)))
+			
+	if not matched_any:
+		return path
 
-
-# Get current folder path
-BASE_PATH = Path(__file__).parent.resolve()
-
-# Define data directory path
-DATA_DIR = BASE_PATH / "data"
-if not DATA_DIR.exists():
-	# create the directory if it doesn't exist
-	DATA_DIR.mkdir(parents=True)
-
-PRODUCT_DIR = DATA_DIR / "products"
-print (f"Checking for products in: {PRODUCT_DIR}")
-if not PRODUCT_DIR.exists():
-	# create the directory if it doesn't exist
-	PRODUCT_DIR.mkdir(parents=True)
-	print(f"Created products directory at: {PRODUCT_DIR}\nPlease add Sentinel-1 products (.SAFE or .zip) to this folder and rerun the program.")
-	sys.exit(1)
-
-
-# Get workflow XML path
-workflowXml = BASE_PATH / "workflow" / "ImageProcessingSentinel1.xml"
-
-# Discover products and determine before/after files based on acquisition time
-products = getProducts(PRODUCT_DIR)
-
-if (products[0].date == products[1].date):
-	raise ValueError(
-		f"Selected products have the same acquisition time: {products[0].date}.\n"
-		"Please choose two products with different acquisition times."
-	)
-
-before_file = getProductFile(products[0].path)
-after_file = getProductFile(products[1].path)
-
-ROI_DIR = DATA_DIR / "region_of_interest"
-if not ROI_DIR.exists():
-	ROI_DIR.mkdir(parents=True)
-	print(f"Created region_of_interest directory at: {ROI_DIR}\nPlease add a shapefile (.shp) to this folder and rerun the program.")
-	sys.exit(1)
-
-# Get the study region shapefile
-regionOfInterest = getShapeFile(ROI_DIR)
-
-if regionOfInterest.suffix.lower() != ".shp":
-	raise ValueError(f"Expected a .shp file, got: {regionOfInterest}")
-
-# Prepare output path with auto-incrementing filename
-out_dir = BASE_PATH / "out"
-output_file = build_numbered_output_file(out_dir, "floodMaskProcessed", ".dim")
-out_dir.mkdir(exist_ok=True)
-
-programVars = [gpt, workflowXml, before_file, after_file, regionOfInterest]
-for required in programVars:
-	if not required.exists():
-		raise FileNotFoundError(f"Required file not found: {required}")
-
-
-cmd = [
-	str(gpt),
-	str(workflowXml),
-	f"-PbeforeFile={before_file}",
-	f"-PafterFile={after_file}",
-	f"-PoutputFile={output_file}",
-	f"-PvectorFile={regionOfInterest}",
-	"-c",
-	memory,
-]
-
-print("Command arguments:")
-for i, arg in enumerate(cmd):
-	print(f"  [{i}] {arg}")
-
-print("Executing SNAP...")
-subprocess.run(cmd, check=True)
-print(f"Processing complete. Output saved to: {output_file}")
+	next_index = max_idx + 1
+	
+	new_path = out_dir / f"{base_name}_{next_index:03d}"
+	print(f"Warning: files matching '{base_name}' already exist. Using index {next_index:03d} to avoid overwriting.")
+	return new_path
